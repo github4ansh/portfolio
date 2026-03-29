@@ -6,13 +6,13 @@
 const CONFIG = {
   /* ── Meta & Personal ──────────────────────────────────────────────────── */
   meta: {
-    siteTitle: "Ansh Agarwal | Senior Software Engineer",
+    siteTitle: "Ansh Agarwal | Software Dev",
     faviconEmoji: "🚀",
   },
 
   personal: {
     name: "Ansh Agarwal",
-    title: "Tech-Agnostic Senior Software Engineer",
+    title: "Tech-Agnostic Software Development Engineer",
     subtitle: "AI & Data Science Enthusiast",
     tagline: "I build cloud-native, data-driven solutions with AI at the helm — transforming complex business problems into elegant software.",
     location: "India",
@@ -49,7 +49,7 @@ const CONFIG = {
   /* ── About Section ────────────────────────────────────────────────────── */
   about: {
     paragraphs: [
-      "I'm a Senior Software Engineer with <strong>5+ years</strong> of experience at the intersection of technology, business, and innovation. My journey started in the manufacturing sector — building automation solutions and real-time analytics that transformed critical operations and delivered measurable business value.",
+      "I'm a Software Development Engineer with <strong>5+ years</strong> of experience at the intersection of technology, business, and innovation. My journey started in the manufacturing sector — building automation solutions and real-time analytics that transformed critical operations and delivered measurable business value.",
       "Over the years, I've expanded into <strong>full-stack development</strong>, <strong>cloud-native engineering</strong> (Azure & AWS), <strong>Data Science</strong> (EDA, ETL, Forecasting), and most recently, <strong>Generative AI</strong> — where I built RAG-based enterprise Q&A systems that put intelligent information retrieval at people's fingertips.",
       "I enjoy wearing multiple hats — whether it's writing clean, scalable code, optimizing cloud infrastructure, designing APIs, conducting data analysis, or engaging with stakeholders. I believe the best engineers are the ones who understand <em>why</em> they're building something, not just <em>how</em>.",
     ],
@@ -732,7 +732,38 @@ const CONFIG = {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     let particles = [];
+    let socialParticles = [];
     let animId;
+    let hoveredSocial = null;
+
+    // SVG icon paths (24x24 viewBox) for social links
+    const socialIcons = {
+      github: {
+        path: "M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.73.083-.73 1.205.085 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.776.418-1.305.762-1.605-2.665-.3-5.467-1.332-5.467-5.93 0-1.31.468-2.382 1.235-3.22-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.3 1.23A11.51 11.51 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.652.242 2.873.118 3.176.77.838 1.234 1.91 1.234 3.22 0 4.61-2.807 5.625-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.216.694.825.576C20.565 21.796 24 17.298 24 12c0-6.63-5.37-12-12-12z",
+        url: CONFIG.social.github,
+        label: "GitHub",
+      },
+      linkedin: {
+        path: "M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z",
+        url: CONFIG.social.linkedin,
+        label: "LinkedIn",
+      },
+      blog: {
+        path: "M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zM7 7h10v2H7V7zm0 4h10v2H7v-2zm0 4h7v2H7v-2z",
+        url: CONFIG.social.blog,
+        label: "Blog",
+      },
+    };
+
+    // Pre-build Path2D objects for each icon (scaled to unit size)
+    const iconPaths = {};
+    Object.keys(socialIcons).forEach((key) => {
+      iconPaths[key] = new Path2D(socialIcons[key].path);
+    });
+
+    const SOCIAL_RADIUS = 18;
+    const SOCIAL_HIT_RADIUS = 24;
+    const SOCIAL_SPEED = 0.6;
 
     function resize() {
       canvas.width = canvas.parentElement.offsetWidth;
@@ -746,10 +777,70 @@ const CONFIG = {
         particles.push({
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5,
+          vx: (Math.random() - 0.5) * 1.0,
+          vy: (Math.random() - 0.5) * 1.0,
           r: Math.random() * 2 + 0.5,
         });
+      }
+
+      // Create social particles spread across the canvas
+      socialParticles = [];
+      const keys = Object.keys(socialIcons).filter((k) => socialIcons[k].url);
+      const padding = 80;
+      keys.forEach((key, i) => {
+        socialParticles.push({
+          key: key,
+          x: padding + Math.random() * (canvas.width - padding * 2),
+          y: padding + Math.random() * (canvas.height - padding * 2),
+          vx: (Math.random() - 0.5) * SOCIAL_SPEED,
+          vy: (Math.random() - 0.5) * SOCIAL_SPEED,
+          baseRadius: SOCIAL_RADIUS,
+          currentRadius: SOCIAL_RADIUS,
+          hovered: false,
+          pulse: Math.random() * Math.PI * 2, // offset for pulse animation
+        });
+      });
+    }
+
+    function drawSocialParticle(sp, color) {
+      sp.pulse += 0.02;
+      const pulseScale = 1 + Math.sin(sp.pulse) * 0.05;
+      const targetR = sp.hovered ? sp.baseRadius * 1.3 : sp.baseRadius;
+      sp.currentRadius += (targetR - sp.currentRadius) * 0.15;
+      const r = sp.currentRadius * pulseScale;
+
+      // Glow ring
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, r + 6, 0, Math.PI * 2);
+      const glowAlpha = sp.hovered ? 0.25 : 0.1;
+      ctx.fillStyle = color.replace(/[\d.]+\)$/, glowAlpha + ")");
+      ctx.fill();
+
+      // Background circle
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color.replace(/[\d.]+\)$/, sp.hovered ? "0.2" : "0.1") ;
+      ctx.fill();
+      ctx.strokeStyle = color.replace(/[\d.]+\)$/, sp.hovered ? "0.8" : "0.4");
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Draw icon using Path2D — scale from 24x24 viewBox to fit inside the circle
+      const iconSize = r * 1.1;
+      const scale = iconSize / 24;
+      ctx.save();
+      ctx.translate(sp.x - iconSize / 2, sp.y - iconSize / 2);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = color.replace(/[\d.]+\)$/, sp.hovered ? "1" : "0.7");
+      ctx.fill(iconPaths[sp.key]);
+      ctx.restore();
+
+      // Label on hover
+      if (sp.hovered) {
+        ctx.font = "600 11px 'Inter', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = color.replace(/[\d.]+\)$/, "0.9)");
+        ctx.fillText(socialIcons[sp.key].label, sp.x, sp.y + r + 18);
       }
     }
 
@@ -757,6 +848,7 @@ const CONFIG = {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const color = getComputedStyle(document.documentElement).getPropertyValue("--particle-color").trim() || "rgba(100,200,255,0.5)";
 
+      // Update and draw regular particles
       particles.forEach((p) => {
         p.x += p.vx;
         p.y += p.vy;
@@ -771,7 +863,7 @@ const CONFIG = {
         ctx.fill();
       });
 
-      // Draw connections
+      // Draw connections between regular particles
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
@@ -787,8 +879,81 @@ const CONFIG = {
           }
         }
       }
+
+      // Draw connections from social particles to nearby regular particles
+      socialParticles.forEach((sp) => {
+        particles.forEach((p) => {
+          const dx = sp.x - p.x;
+          const dy = sp.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 150) {
+            ctx.beginPath();
+            ctx.moveTo(sp.x, sp.y);
+            ctx.lineTo(p.x, p.y);
+            ctx.strokeStyle = color.replace(/[\d.]+\)$/, `${(1 - dist / 150) * 0.4})`);
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+        });
+      });
+
+      // Update and draw social particles
+      socialParticles.forEach((sp) => {
+        sp.x += sp.vx;
+        sp.y += sp.vy;
+        const pad = SOCIAL_RADIUS + 10;
+        if (sp.x < pad || sp.x > canvas.width - pad) sp.vx *= -1;
+        if (sp.y < pad || sp.y > canvas.height - pad) sp.vy *= -1;
+        sp.x = Math.max(pad, Math.min(canvas.width - pad, sp.x));
+        sp.y = Math.max(pad, Math.min(canvas.height - pad, sp.y));
+
+        drawSocialParticle(sp, color);
+      });
+
       animId = requestAnimationFrame(draw);
     }
+
+    function getSocialAt(mx, my) {
+      for (let i = socialParticles.length - 1; i >= 0; i--) {
+        const sp = socialParticles[i];
+        const dx = mx - sp.x;
+        const dy = my - sp.y;
+        if (dx * dx + dy * dy <= SOCIAL_HIT_RADIUS * SOCIAL_HIT_RADIUS) return sp;
+      }
+      return null;
+    }
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const sp = getSocialAt(mx, my);
+      socialParticles.forEach((p) => (p.hovered = false));
+      if (sp) {
+        sp.hovered = true;
+        canvas.style.cursor = "pointer";
+        hoveredSocial = sp;
+      } else {
+        canvas.style.cursor = "default";
+        hoveredSocial = null;
+      }
+    });
+
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const sp = getSocialAt(mx, my);
+      if (sp) {
+        window.open(socialIcons[sp.key].url, "_blank", "noopener,noreferrer");
+      }
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      socialParticles.forEach((p) => (p.hovered = false));
+      canvas.style.cursor = "default";
+      hoveredSocial = null;
+    });
 
     resize();
     createParticles();
