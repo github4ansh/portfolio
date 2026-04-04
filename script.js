@@ -43,7 +43,19 @@ const CONFIG = {
     enableScrollAnimations: true, // Scroll-triggered fade-in effects
     enableTypingEffect: true,    // Typing animation in hero
     enableSmoothScroll: true,    // Smooth scroll for nav links
+    enableChatbot: true,         // AI chatbot widget
     defaultTheme: "dark",        // "dark" or "light"
+  },
+
+  /* ── Chatbot ─────────────────────────────────────────────────────────── */
+  chatbot: {
+    apiURL: "https://portfolio-api-sigma-one.vercel.app/api/chat",
+    starterQuestions: [
+      "What's his tech stack?",
+      "Tell me about his AI/ML experience",
+      "What projects has he built?",
+      "What's his work experience?",
+    ],
   },
 
   /* ── About Section ────────────────────────────────────────────────────── */
@@ -1062,6 +1074,230 @@ const CONFIG = {
     });
   }
 
+  /* ── Chatbot Widget ─────────────────────────────────────────────────── */
+  function buildChatbot() {
+    if (!CONFIG.features.enableChatbot) return;
+
+    let chatOpen = false;
+    let messages = [];
+    let isStreaming = false;
+
+    // Create FAB button
+    const fab = el("button", {
+      className: "chat-fab",
+      "aria-label": "Open chat",
+      onClick: () => toggleChat(),
+    });
+    fab.innerHTML = `<svg class="chat-fab__icon chat-fab__icon--chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><svg class="chat-fab__icon chat-fab__icon--close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+    // Create chat panel
+    const panel = el("div", { className: "chat-panel" });
+
+    // Header
+    const header = el("div", { className: "chat-panel__header" });
+    header.innerHTML = `<div class="chat-panel__header-info"><span class="chat-panel__header-dot"></span><span class="chat-panel__header-title">Ask about Ansh</span></div>`;
+    const closeBtn = el("button", {
+      className: "chat-panel__close",
+      "aria-label": "Close chat",
+      onClick: () => toggleChat(),
+    });
+    closeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    // Messages area
+    const messagesArea = el("div", { className: "chat-panel__messages", id: "chat-messages" });
+    panel.appendChild(messagesArea);
+
+    // Footer with input
+    const footer = el("div", { className: "chat-panel__footer" });
+    const inputWrap = el("div", { className: "chat-panel__input-wrap" });
+    const input = el("input", {
+      className: "chat-panel__input",
+      type: "text",
+      placeholder: "Ask me anything about Ansh...",
+      id: "chat-input",
+    });
+    const sendBtn = el("button", {
+      className: "chat-panel__send",
+      "aria-label": "Send message",
+      onClick: () => sendMessage(),
+    });
+    sendBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
+    inputWrap.append(input, sendBtn);
+    footer.appendChild(inputWrap);
+    footer.appendChild(el("p", { className: "chat-panel__powered" }, "Powered by Claude \u00B7 Answers based on portfolio data"));
+    panel.appendChild(footer);
+
+    document.body.appendChild(fab);
+    document.body.appendChild(panel);
+
+    // Enter key
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function toggleChat() {
+      chatOpen = !chatOpen;
+      fab.classList.toggle("chat-fab--open", chatOpen);
+      panel.classList.toggle("chat-panel--open", chatOpen);
+      if (chatOpen) {
+        renderMessages();
+        input.focus();
+      }
+    }
+
+    function renderMessages() {
+      messagesArea.innerHTML = "";
+
+      if (messages.length === 0) {
+        // Show starter questions
+        const welcome = el("div", { className: "chat-msg chat-msg--assistant" });
+        welcome.appendChild(el("div", { className: "chat-msg__bubble" }, "Hi! I can answer questions about Ansh's professional background, skills, and experience. What would you like to know?"));
+        messagesArea.appendChild(welcome);
+
+        const chips = el("div", { className: "chat-chips" });
+        CONFIG.chatbot.starterQuestions.forEach((q) => {
+          const chip = el("button", {
+            className: "chat-chip",
+            onClick: () => {
+              input.value = q;
+              sendMessage();
+            },
+          }, q);
+          chips.appendChild(chip);
+        });
+        messagesArea.appendChild(chips);
+      } else {
+        messages.forEach((msg) => {
+          const wrapper = el("div", { className: `chat-msg chat-msg--${msg.role}` });
+          const bubble = el("div", { className: "chat-msg__bubble" });
+          bubble.innerHTML = formatMessage(msg.content);
+          wrapper.appendChild(bubble);
+          messagesArea.appendChild(wrapper);
+        });
+      }
+
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function formatMessage(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\n/g, "<br>");
+    }
+
+    function addTypingIndicator() {
+      const wrapper = el("div", { className: "chat-msg chat-msg--assistant", id: "chat-typing" });
+      wrapper.innerHTML = `<div class="chat-msg__bubble chat-typing"><span></span><span></span><span></span></div>`;
+      messagesArea.appendChild(wrapper);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const typing = $("#chat-typing");
+      if (typing) typing.remove();
+    }
+
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text || isStreaming) return;
+
+      input.value = "";
+      messages.push({ role: "user", content: text });
+      renderMessages();
+
+      isStreaming = true;
+      sendBtn.disabled = true;
+      addTypingIndicator();
+
+      // Build history for API (last 10 messages)
+      const history = messages.slice(-10).map((m) => ({
+        role: m.role === "user" ? "user" : "assistant",
+        content: m.content,
+      }));
+
+      try {
+        const res = await fetch(CONFIG.chatbot.apiURL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, history: history.slice(0, -1) }),
+        });
+
+        removeTypingIndicator();
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.error || `Something went wrong (${res.status}). Please try again.`;
+          messages.push({ role: "assistant", content: errMsg });
+          renderMessages();
+          isStreaming = false;
+          sendBtn.disabled = false;
+          return;
+        }
+
+        // Stream the response
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let assistantMsg = "";
+        messages.push({ role: "assistant", content: "" });
+
+        // Create the bubble for streaming
+        const wrapper = el("div", { className: "chat-msg chat-msg--assistant" });
+        const bubble = el("div", { className: "chat-msg__bubble" });
+        wrapper.appendChild(bubble);
+        messagesArea.appendChild(wrapper);
+
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") break;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === "content_block_delta" && parsed.delta && parsed.delta.text) {
+                  assistantMsg += parsed.delta.text;
+                  bubble.innerHTML = formatMessage(assistantMsg);
+                  messagesArea.scrollTop = messagesArea.scrollHeight;
+                } else if (parsed.text) {
+                  assistantMsg += parsed.text;
+                  bubble.innerHTML = formatMessage(assistantMsg);
+                  messagesArea.scrollTop = messagesArea.scrollHeight;
+                }
+              } catch (_) {
+                // Not JSON, might be raw text chunk
+                assistantMsg += data;
+                bubble.innerHTML = formatMessage(assistantMsg);
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+              }
+            }
+          }
+        }
+
+        // Update the stored message
+        messages[messages.length - 1].content = assistantMsg || "Sorry, I couldn't generate a response. Please try again.";
+      } catch (err) {
+        removeTypingIndicator();
+        messages.push({ role: "assistant", content: "Network error — please check your connection and try again." });
+        renderMessages();
+      }
+
+      isStreaming = false;
+      sendBtn.disabled = false;
+    }
+  }
+
   /* ── Initialize Everything ──────────────────────────────────────────── */
   function init() {
     buildNav();
@@ -1080,6 +1316,7 @@ const CONFIG = {
     initActiveNav();
     initContactForm();
     animateHeroEntrance();
+    buildChatbot();
   }
 
   if (document.readyState === "loading") {
