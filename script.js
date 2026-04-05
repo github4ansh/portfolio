@@ -17,7 +17,13 @@ const CONFIG = {
     tagline: "I build cloud-native, data-driven solutions with AI at the helm — transforming complex business problems into elegant software.",
     location: "India",
     email: "deianshagarwal@gmail.com",
-    resumeURL: "#", // Replace with actual resume PDF link
+    resumes: [
+      { label: "Software Development Engineer", file: "resumes/Ansh_Resume_sde.pdf" },
+      { label: "Data Scientist", file: "resumes/Ansh_Resume_ds.pdf" },
+      { label: "AI Engineer", file: "resumes/Ansh_Resume_ai.pdf" },
+      { label: "Machine Learning Engineer", file: "resumes/Ansh_Resume_ml.pdf" },
+      { label: "Backend Engineer", file: "resumes/Ansh_Resume_backend.pdf" },
+    ],
   },
 
   social: {
@@ -410,7 +416,37 @@ const CONFIG = {
 
     const ctas = el("div", { className: "hero__ctas animate-in" });
     ctas.appendChild(el("a", { className: "btn btn--primary", href: "#contact" }, "Get In Touch"));
-    ctas.appendChild(el("a", { className: "btn btn--outline", href: CONFIG.personal.resumeURL, target: "_blank", rel: "noopener" }, "Resume"));
+    // Resume dropdown
+    const resumeWrap = el("div", { className: "resume-dropdown" });
+    const resumeBtn = el("button", {
+      className: "btn btn--outline resume-dropdown__trigger",
+      "aria-haspopup": "true",
+      "aria-expanded": "false",
+    },
+      "Resume",
+      el("span", { className: "resume-dropdown__arrow", "aria-hidden": "true" }, "\u25BE")
+    );
+
+    const menu = el("ul", { className: "resume-dropdown__menu", role: "menu" });
+    const downloadIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+    CONFIG.personal.resumes.forEach((r) => {
+      const item = el("li", { role: "none" });
+      const link = el("a", {
+        className: "resume-dropdown__item",
+        href: r.file,
+        download: "",
+        role: "menuitem",
+        tabindex: "-1",
+        innerHTML: downloadIcon + " ",
+      });
+      link.appendChild(document.createTextNode(r.label));
+      item.appendChild(link);
+      menu.appendChild(item);
+    });
+
+    resumeWrap.appendChild(resumeBtn);
+    resumeWrap.appendChild(menu);
+    ctas.appendChild(resumeWrap);
 
     const scrollHint = el("div", { className: "hero__scroll-hint animate-in" },
       el("span", { className: "hero__scroll-text" }, "Scroll to explore"),
@@ -1298,6 +1334,62 @@ const CONFIG = {
     }
   }
 
+  /* ── Resume Dropdown ────────────────────────────────────────────────── */
+  function initResumeDropdown() {
+    const wrap = $(".resume-dropdown");
+    if (!wrap) return;
+    const btn = $(".resume-dropdown__trigger", wrap);
+    const menu = $(".resume-dropdown__menu", wrap);
+    const items = $$(".resume-dropdown__item", menu);
+    const scrollHint = $(".hero__scroll-hint");
+
+    function open() {
+      btn.setAttribute("aria-expanded", "true");
+      menu.classList.add("resume-dropdown__menu--open");
+      if (scrollHint) scrollHint.style.visibility = "hidden";
+      if (items.length) items[0].focus();
+    }
+
+    function close(returnFocus) {
+      btn.setAttribute("aria-expanded", "false");
+      menu.classList.remove("resume-dropdown__menu--open");
+      if (scrollHint) scrollHint.style.visibility = "";
+      if (returnFocus) btn.focus();
+    }
+
+    function toggle() {
+      btn.getAttribute("aria-expanded") === "true" ? close(true) : open();
+    }
+
+    btn.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+
+    // Close on outside click or Escape
+    document.addEventListener("click", (e) => {
+      if (!wrap.contains(e.target)) close(false);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && btn.getAttribute("aria-expanded") === "true") {
+        e.preventDefault();
+        close(true);
+      }
+    });
+
+    // Keyboard navigation
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+        if (btn.getAttribute("aria-expanded") !== "true") { e.preventDefault(); open(); }
+      }
+    });
+
+    menu.addEventListener("keydown", (e) => {
+      const idx = items.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); items[(idx + 1) % items.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); items[(idx - 1 + items.length) % items.length].focus(); }
+      else if (e.key === "Escape") { e.preventDefault(); close(true); }
+      else if (e.key === "Tab") { close(false); }
+    });
+  }
+
   /* ── Initialize Everything ──────────────────────────────────────────── */
   function init() {
     buildNav();
@@ -1317,6 +1409,7 @@ const CONFIG = {
     initContactForm();
     animateHeroEntrance();
     buildChatbot();
+    initResumeDropdown();
   }
 
   if (document.readyState === "loading") {
